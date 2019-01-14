@@ -117,19 +117,19 @@ public class SelectSeatView extends View {
     /**
      * 空位置
      */
-    public static int emptySeat = 0;
+    public static final int EMPTY_SEAT = 0;
     /**
      * 默认座位
      */
-    public static int normalSeat = 1;
+    public static final int NORMAL_SEAT = 1;
     /**
      * 已卖座位
      */
-    public static int sellSeat = 2;
+    public static final int SELL_SEAT = 2;
     /**
      * 选中座位
      */
-    public static int selectSeat = 3;
+    public static final int SELECT_SEAT = 3;
     /**
      * Film屏幕高度
      */
@@ -203,7 +203,7 @@ public class SelectSeatView extends View {
         initGesture(context);
         inflater = LayoutInflater.from(context);
         screenPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        screenPaint.setColor(Color.YELLOW);
+        screenPaint.setColor(Color.WHITE);
 
         paintSeat = new Paint(Paint.ANTI_ALIAS_FLAG);
         paintSeat.setColor(Color.GREEN);
@@ -304,6 +304,9 @@ public class SelectSeatView extends View {
                 LogUtil.i(currentX + "--before--" + currentY);
                 currentPoint.set((int) currentX, (int) currentY);
                 clickSeat(currentPoint);
+                if (childSelectListener != null) {
+                    childSelectListener.onChildSelect(selectList);
+                }
                 return super.onSingleTapConfirmed(event);
             }
         });
@@ -352,10 +355,12 @@ public class SelectSeatView extends View {
         drawRowIndex(canvas);
         //绘制电影屏幕
         drawFilmScreen(canvas);
+
     }
 
     private void drawRowIndex(Canvas canvas) {
         RectF rect = new RectF(transformOldCoordX(0), marginTopScreen - seatWidth / 2, transformOldCoordX(seatWidth), marginTopScreen + seatWidth * row - seatWidth / 2 - margiVertical);
+        screenPaint.setColor(Color.parseColor("#44666666"));
         canvas.drawRoundRect(rect, 20, 20, screenPaint);
         for (int i = 0; i < row; i++) {
             int startY;
@@ -371,6 +376,7 @@ public class SelectSeatView extends View {
 
     private void drawFilmScreen(Canvas canvas) {
         //计算出实时的顶部位置，座位的矩阵部分其实是原始的坐标。
+        screenPaint.setColor(Color.parseColor("#ffffff"));
         float centerX;
         if (scale == 1.0) {
             centerX = ((seatRect.right + seatRect.left) / 2);
@@ -390,7 +396,7 @@ public class SelectSeatView extends View {
         canvas.drawPath(path1, screenPaint);
         canvas.drawText("屏幕", (centerX - filmScreenHeight / 4), transformOldCoordY(filmScreenHeight / 4), textPaint);
 //        LogUtil.i("drawFilmScreen = " + centerX + "---" + getMatrixTranslateY() + "***" + getMatrixTranslateX());
-        canvas.drawLine(centerX, transformOldCoordY(0), centerX, transformOldCoordY(screenHeight), screenPaint);
+        canvas.drawLine(centerX, transformOldCoordY(0), centerX, marginTopScreen + seatWidth * row - seatWidth / 2 - margiVertical, screenPaint);
 
 
     }
@@ -407,6 +413,7 @@ public class SelectSeatView extends View {
             } else {
                 startY = i * seatWidth + marginTopScreen;
             }
+            int emptyCount = 0;
             //每排多少座位
             for (int x = 0; x < seatList[i].length; x++) {
                 int left;
@@ -424,25 +431,28 @@ public class SelectSeatView extends View {
                 SelectRectBean selectRectBean = new SelectRectBean();
                 Rect rect = new Rect(left + margiHorizontal, top + margiVertical, left + seatWidth, top + seatWidth);
                 selectRectBean.setRect(rect);
-                selectRectBean.setRow(i + 1);
-                selectRectBean.setColumn(x + 1);
                 selectRectBean.setSeatState(seatState);
                 //需要计算从中间开始绘制座位
                 switch (seatState) {
-                    case 0:
+                    case EMPTY_SEAT:
+                        emptyCount++;
                         paintSeat.setColor(Color.TRANSPARENT);
                         canvas.drawRect(rect, paintSeat);
                         break;
-                    case 1:
+                    case NORMAL_SEAT:
                         paintSeat.setColor(Color.WHITE);
+                        selectRectBean.setColumn(x + 1 - emptyCount);
+                        selectRectBean.setRow(i + 1);
                         canvas.drawRect(rect, paintSeat);
                         break;
-                    case 2:
+                    case SELL_SEAT:
                         paintSeat.setColor(Color.RED);
                         canvas.drawRect(rect, paintSeat);
                         break;
-                    case 3:
+                    case SELECT_SEAT:
                         paintSeat.setColor(Color.GREEN);
+                        selectRectBean.setColumn(x + 1 - emptyCount);
+                        selectRectBean.setRow(i + 1);
                         canvas.drawRect(rect, paintSeat);
                         break;
                     default:
@@ -473,8 +483,8 @@ public class SelectSeatView extends View {
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         //事件分发给手势处理器进行缩放和平移
-        scaleGestureDetector.onTouchEvent(event);
         gestureDetector.onTouchEvent(event);
+        scaleGestureDetector.onTouchEvent(event);
         return true;
     }
 
@@ -483,7 +493,7 @@ public class SelectSeatView extends View {
         for (int i = 0; i < mRectList.size(); i++) {
             Rect rect = mRectList.get(i).getRect();
             SelectRectBean selectRectBean = mRectList.get(i);
-            if (selectRectBean.getSeatState() == sellSeat) {
+            if (selectRectBean.getSeatState() == SELL_SEAT) {
                 continue;
             }
             float newLeft = rect.left * getMatrixScaleX() + 1 * getMatrixTranslateX();

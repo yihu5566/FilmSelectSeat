@@ -10,15 +10,10 @@ import java.util.List;
 public interface ChildSelectListener {
     /**
      * @param stringList
-     * @param position
+     * @param
      * @return
      */
-    void onChildSelect(List<String> stringList, int position);
+    void onChildSelect(List<SelectRectBean> stringList);
 
-    /**
-     * @param object
-     * @param position
-     */
-    void onChildSelect(Object object, int position);
 
 }
