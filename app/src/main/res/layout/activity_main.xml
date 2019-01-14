@@ -4,12 +4,19 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:orientation="vertical"
     tools:context=".MainActivity">
 
+    <Button
+        android:id="@+id/btn"
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:text="填充数据" />
+
     <com.juyoufuli.filmselectseat.SelectSeatView
-        android:id="@+id/LabelsView"
-        android:layout_width="360dp"
-        android:layout_height="360dp"
+        android:id="@+id/search_seat"
+        android:layout_width="match_parent"
+        android:layout_height="160dp"
         android:background="@android:color/darker_gray" />
 
 </LinearLayout>

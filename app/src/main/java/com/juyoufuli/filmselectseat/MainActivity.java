@@ -11,44 +11,35 @@ import java.util.List;
 public class MainActivity extends AppCompatActivity {
     private String[] textDefault = {"标签", "标签", "标签", "标签", "标签", "标签", "标签", "标签", "标签", "撒上", "撒上"
             , "我是", "标签", "标签", "标签", "标签"};
+
+    private int[][] seatList = new int[6][];
+    private SelectSeatView searchSeat;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        searchSeat = findViewById(R.id.search_seat);
 
-
-
-
-//        initSelectSeatViewGroup();
-
-    }
-
-    private void initSelectSeatViewGroup() {
-        SelectSeatViewGroup labelsView = findViewById(R.id.LabelsView);
-        labelsView.setModel(Model.SELECT);
-        labelsView.setTextList(Arrays.asList(textDefault));
-        labelsView.setChildClickListener(new ChildClickListener() {
-            @Override
-            public void onChildClick(View view, Object object, int position) {
-//                Toast.makeText(MainActivity.this, object.toString() + "第几个：" + position, Toast.LENGTH_SHORT).show();
-            }
-        });
-        labelsView.setChildSelectListener(new ChildSelectListener() {
-            @Override
-            public void onChildSelect(List<String> stringList, int position) {
-                StringBuffer stringBuffer = new StringBuffer();
-                for (int i = 0; i < stringList.size(); i++) {
-                    stringBuffer.append(stringList.get(i));
+//外层数组
+        for (int i = 0; i < 6; i++) {
+            int[] indes = new int[10];
+            for (int x = 0; x < 10; x++) {
+                if (i == 0) {
+                    if (x < 2 || x > 6) {
+                        indes[x] = 0;
+                    } else if (x == 5) {
+                        indes[x] = 2;
+                    } else {
+                        indes[x] = 1;
+                    }
+                } else {
+                    indes[x] = 1;
                 }
-//                Toast.makeText(MainActivity.this, stringBuffer.toString() + "第几个：" + position, Toast.LENGTH_SHORT).show();
-
             }
+            seatList[i] = indes;
+        }
+        searchSeat.setSeatList(seatList);
 
-            @Override
-            public void onChildSelect(Object object, int position) {
-//                Toast.makeText(MainActivity.this, object.toString() + "第几个：" + position, Toast.LENGTH_SHORT).show();
-            }
-
-        });
     }
 }

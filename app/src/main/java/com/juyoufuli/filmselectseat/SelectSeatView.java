@@ -151,7 +151,6 @@ public class SelectSeatView extends View {
      */
     private Rect seatRect;
 
-
     public void setChildSelectListener(ChildSelectListener childSelectListener) {
         this.childSelectListener = childSelectListener;
     }
@@ -167,6 +166,12 @@ public class SelectSeatView extends View {
         }
     }
 
+    public void setSeatList(int[][] seatList) {
+        this.seatList = seatList;
+        row = seatList.length;
+
+        invalidate();
+    }
 
     public SelectSeatView(@NonNull Context context) {
         this(context, null);
@@ -184,32 +189,12 @@ public class SelectSeatView extends View {
         init(context);
     }
 
+
     private void initData() {
         selectList = new ArrayList<>();
         mRectList = new ArrayList<>();
         currentPoint = new Point();
-        seatList = new int[6][];
-        //外层数组
-        for (int i = 0; i < 6; i++) {
-            row = 6;
-//            int index = getRandom();
-            int[] indes = new int[11];
-            column = 11;
-            for (int x = 0; x < 11; x++) {
-                if (i == 0) {
-                    if (x < 2 || x > 6) {
-                        indes[x] = 0;
-                    } else if (x == 5) {
-                        indes[x] = 2;
-                    } else {
-                        indes[x] = 1;
-                    }
-                } else {
-                    indes[x] = 1;
-                }
-            }
-            seatList[i] = indes;
-        }
+        seatList = new int[row][];
 
     }
 
@@ -271,40 +256,35 @@ public class SelectSeatView extends View {
             @Override
             public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
                 //方向是相反的，所以需要加负号。
-                LogUtil.i("onScroll_change = " + "获取移动的距离" + getMatrixTranslateX() + "---" + getMatrixTranslateY());
-                //通过移动距离的大小来判断x移动或y轴移动 distanceX + "---" + distanceY +
-                if (scale == 1.0) {
-                    if (seatRect.left < transformNewCoordX(seatRect.left)) {
-                        mCanvasMatrix.postTranslate(-10, 0);
-                        return true;
-                    }
-                } else {
-                    float x = seatRect.left / getMatrixScaleX() - getMatrixTranslateX() + 10;
-                    float standardX = transformNewCoordX(seatRect.left);
-                    if (standardX > x) {
-                        mCanvasMatrix.postTranslate(-10, 0);
-                        return true;
-                    }
-                }
-
-                if (scale == 1.0) {
-                    if (seatRect.top < transformNewCoordY(seatRect.top)) {
-                        mCanvasMatrix.postTranslate(0, -10);
-                        return true;
-                    }
-                } else {
-                    float x = seatRect.top / getMatrixScaleY() - getMatrixTranslateY() + 10;
-                    float standardX = transformNewCoordY(seatRect.top);
-                    if (standardX > x) {
-                        mCanvasMatrix.postTranslate(0, -10);
-                        return true;
-                    }
-                }
-
-
+//                LogUtil.i("onScroll_change = " + "获取移动的距离" + getMatrixTranslateX() + "---" + getMatrixTranslateY());
+                //通过移动距离的大小来判断x移动或y轴移动
                 if (Math.abs(distanceX) > Math.abs(distanceY)) {
+                    float x = seatRect.left / getMatrixScaleX() - getMatrixTranslateX() + seatWidth;
+                    float standardX = transformNewCoordX(seatRect.left);
+                    float xRight = seatRect.right * getMatrixScaleX() + getMatrixTranslateX();
+                    float standardRightX = measuredWidth - seatWidth;
+//                LogUtil.i("onScroll_change = " + "获取移动的距离" + xRight + "---" + standardRightX);
+                    if (standardX >= x) {
+                        mCanvasMatrix.preTranslate(-5, 0);
+                        return true;
+                    } else if (xRight < standardRightX) {
+                        mCanvasMatrix.preTranslate(5, 0);
+                        return true;
+                    }
                     mCanvasMatrix.postTranslate(-distanceX, 0);
                 } else if (Math.abs(distanceX) < Math.abs(distanceY)) {
+                    float x = seatRect.top / getMatrixScaleY() - getMatrixTranslateY();
+                    float standardX = transformNewCoordY(seatRect.top);
+                    float xRight = seatRect.bottom * getMatrixScaleY() + getMatrixTranslateY();
+                    float standardRightX = measuredHeight - seatWidth;
+                    LogUtil.i("onScroll_change = " + "获取移动的距离" + xRight + "---" + standardRightX);
+                    if (standardX >= x) {
+                        mCanvasMatrix.preTranslate(0, -5);
+                        return true;
+                    } else if (xRight < standardRightX) {
+                        mCanvasMatrix.preTranslate(0, 5);
+                        return true;
+                    }
                     mCanvasMatrix.postTranslate(0, -distanceY);
                 } else {
 
