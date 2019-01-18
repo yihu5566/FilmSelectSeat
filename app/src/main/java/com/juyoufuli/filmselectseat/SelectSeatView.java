@@ -263,7 +263,7 @@ public class SelectSeatView extends View {
         paintBorder = new Paint(Paint.ANTI_ALIAS_FLAG);
         paintBorder.setColor(Color.RED);
         paintBorder.setStyle(Paint.Style.STROKE);
-        paintBorder.setStrokeWidth(2);
+        paintBorder.setStrokeWidth(1);
 
         textPaint = new TextPaint();
         textPaint.setTextSize(20);
@@ -427,7 +427,7 @@ public class SelectSeatView extends View {
             mCanvasRect.left = 0;
             mCanvasRect.top = 0;
             mCanvasRect.right = (seatWidth + margiHorizontal) * seatList[0].length + (seatWidth + seatWidth / 2 + margiHorizontal);
-            mCanvasRect.bottom = (seatWidth + margiVertical) * seatList.length + marginTopScreen;
+            mCanvasRect.bottom = (seatWidth + margiVertical) * seatList.length + marginTopScreen - seatWidth / 2 - margiVertical;
         }
     }
 
@@ -436,7 +436,6 @@ public class SelectSeatView extends View {
         float left = transformOldCoordX(0) - getMatrixTranslateX() / getMatrixScaleX() / getMatrixScaleX() / ratioOver;
         float top = transformOldCoordY(0) - getMatrixTranslateY() / getMatrixScaleY() / getMatrixScaleX() / ratioOver;
         float right = left + measuredWidth / getMatrixScaleX() / getMatrixScaleX() / ratioOver;
-
         float bottom = top + measuredHeight / getMatrixScaleY() / getMatrixScaleY() / ratioOver;
 //        float right = transformOldCoordX(measuredWidth) / getMatrixScaleX() / ratioOver - getMatrixTranslateX() / getMatrixScaleX() / ratioOver;
 //        float bottom = transformOldCoordY(measuredHeight) / getMatrixScaleY() / ratioOver - getMatrixTranslateY() / getMatrixScaleY() / ratioOver;
@@ -488,9 +487,9 @@ public class SelectSeatView extends View {
             for (int x = 0; x < seatList[i].length; x++) {
                 float top;
                 if (i == 0) {
-                    top = mRect.top + marginTopScreen / getMatrixScaleX() / ratioOver;
+                    top = mRect.top + (marginTopScreen - seatWidth / 2 - margiVertical) / getMatrixScaleX() / ratioOver;
                 } else {
-                    top = (mRect.top + (i * seatWidth + marginTopScreen) / getMatrixScaleX() / ratioOver);
+                    top = (mRect.top + (i * seatWidth + marginTopScreen - seatWidth / 2 - margiVertical) / getMatrixScaleX() / ratioOver);
                 }
                 float left;
                 //开始绘制矩阵图
