@@ -417,6 +417,7 @@ public class SelectSeatView extends View {
         drawFilmScreen(canvas);
         //是否绘制概览区域
         if (isDrawOver) {
+            //绘制概览区域
             drawOverView(canvas);
             //绘制边框
             drawOverBorder(canvas);
@@ -439,7 +440,7 @@ public class SelectSeatView extends View {
         float bottom = top + transformCoverDistance2(measuredHeight);
 //        float right = transformOldCoordX(measuredWidth) / getMatrixScaleX() / ratioOver - getMatrixTranslateX() / getMatrixScaleX() / ratioOver;
 //        float bottom = transformOldCoordY(measuredHeight) / getMatrixScaleY() / ratioOver - getMatrixTranslateY() / getMatrixScaleY() / ratioOver;
-        LogUtil.i(left + "-右-" + right + "-下-");
+//        LogUtil.i(left + "-右-" + right + "-下-");
 
         RectF rectBorder = new RectF(
                 left,
@@ -473,7 +474,8 @@ public class SelectSeatView extends View {
     private void drawFilmScreenCover(RectF rect, Canvas canvas) {
         //计算出实时的顶部位置，座位的矩阵部分其实是原始的坐标。
         screenPaint.setColor(Color.parseColor("#ffffff"));
-        float centerX = ((rect.right + rect.left) / 2);
+        float centerX = ((rect.right + rect.left) / 2 - 1.5f);
+        LogUtil.i("中心的x坐标：：：" + centerX);
         float newLeft = (centerX - transformCoverDistance(100));
         float newRight = (centerX - transformCoverDistance(filmScreenHeight));
         float newTop = (centerX + transformCoverDistance(filmScreenHeight));
@@ -714,6 +716,7 @@ public class SelectSeatView extends View {
 //        downY = event.getY();
         switch (event.getAction()) {
             case MotionEvent.ACTION_DOWN:
+                mHandler.removeMessages(1);
                 isDrawOver = true;
                 break;
             case MotionEvent.ACTION_UP:
@@ -730,7 +733,6 @@ public class SelectSeatView extends View {
 //                    }
 //                }
 //                LogUtil.i("是否 绘制缩略图：" + isDrawOver);
-                mHandler.removeMessages(1);
                 mHandler.sendEmptyMessageDelayed(1, 2000);
                 break;
             default:
