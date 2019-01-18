@@ -433,10 +433,10 @@ public class SelectSeatView extends View {
 
     private void drawOverBorder(Canvas canvas) {
         //绘制移动的框，应该显示屏幕区域内的座位,屏幕点转换到画布上，在转换到缩略图上
-        float left = transformOldCoordX(0) - getMatrixTranslateX() / getMatrixScaleX() / getMatrixScaleX() / ratioOver;
-        float top = transformOldCoordY(0) - getMatrixTranslateY() / getMatrixScaleY() / getMatrixScaleX() / ratioOver;
-        float right = left + measuredWidth / getMatrixScaleX() / getMatrixScaleX() / ratioOver;
-        float bottom = top + measuredHeight / getMatrixScaleY() / getMatrixScaleY() / ratioOver;
+        float left = transformOldCoordX(0) - transformCoverDistance2(getMatrixTranslateX());
+        float top = transformOldCoordY(0) - transformCoverDistance2(getMatrixTranslateY());
+        float right = left + transformCoverDistance2(measuredWidth);
+        float bottom = top + transformCoverDistance2(measuredHeight);
 //        float right = transformOldCoordX(measuredWidth) / getMatrixScaleX() / ratioOver - getMatrixTranslateX() / getMatrixScaleX() / ratioOver;
 //        float bottom = transformOldCoordY(measuredHeight) / getMatrixScaleY() / ratioOver - getMatrixTranslateY() / getMatrixScaleY() / ratioOver;
         LogUtil.i(left + "-右-" + right + "-下-");
@@ -452,12 +452,14 @@ public class SelectSeatView extends View {
     private void drawOverView(Canvas canvas) {
         float left = transformOldCoordX(0);
         float top = transformOldCoordY(0);
-        float right = left + (mCanvasRect.right - mCanvasRect.left) / getMatrixScaleX() / ratioOver;
-        float bottom = top + (mCanvasRect.bottom - mCanvasRect.top) / getMatrixScaleY() / ratioOver;
+        float right = left + transformCoverDistance(mCanvasRect.right - mCanvasRect.left);
+        float bottom = top + transformCoverDistance(mCanvasRect.bottom - mCanvasRect.top);
         RectF rect = new RectF(left, top, right, bottom);
 //        mCoverCanvasMatrix.reset();
 //        mCoverCanvasMatrix.postScale(1 / getMatrixScaleX(), 1 / getMatrixScaleY());
 //        mCoverCanvasMatrix.postTranslate(-getMatrixTranslateX()/ getMatrixScaleX() / ratioOver, -getMatrixTranslateY()/ getMatrixScaleX() / ratioOver);
+        //绘制中心线和屏幕
+        drawFilmScreenCover(rect, canvas);
         //是否绘制图，一般只有点击时间才会重绘
         if (isDrawOverBitmap) {
         }
@@ -465,6 +467,26 @@ public class SelectSeatView extends View {
 //        if (mBitmap != null) {
 //            canvas.drawBitmap(mBitmap, mCoverCanvasMatrix, overPaint);
 //        }
+
+    }
+
+    private void drawFilmScreenCover(RectF rect, Canvas canvas) {
+        //计算出实时的顶部位置，座位的矩阵部分其实是原始的坐标。
+        screenPaint.setColor(Color.parseColor("#ffffff"));
+        float centerX = ((rect.right + rect.left) / 2);
+        float newLeft = (centerX - transformCoverDistance(100));
+        float newRight = (centerX - transformCoverDistance(filmScreenHeight));
+        float newTop = (centerX + transformCoverDistance(filmScreenHeight));
+        float newBottom = (centerX + transformCoverDistance(100));
+        Path path1 = new Path();
+        path1.moveTo(newLeft, transformOldCoordY(0));
+        path1.lineTo(newRight, transformOldCoordY(0) + transformCoverDistance(filmScreenHeight / 2));
+        path1.lineTo(newTop, transformOldCoordY(0) + transformCoverDistance(filmScreenHeight / 2));
+        path1.lineTo(newBottom, transformOldCoordY(0));
+        path1.close();
+        canvas.drawPath(path1, screenPaint);
+//        canvas.drawText("屏幕", transformCoverDistance(centerX - filmScreenHeight / 4),transformCoverDistance(transformOldCoordY(filmScreenHeight / 4)), textPaint);
+        canvas.drawLine(centerX, transformCoverDistance(transformOldCoordY(0)), centerX, rect.bottom, screenPaint);
 
     }
 
@@ -487,22 +509,22 @@ public class SelectSeatView extends View {
             for (int x = 0; x < seatList[i].length; x++) {
                 float top;
                 if (i == 0) {
-                    top = mRect.top + (marginTopScreen - seatWidth / 2 - margiVertical) / getMatrixScaleX() / ratioOver;
+                    top = mRect.top + transformCoverDistance(marginTopScreen - seatWidth / 2 - margiVertical);
                 } else {
-                    top = (mRect.top + (i * seatWidth + marginTopScreen - seatWidth / 2 - margiVertical) / getMatrixScaleX() / ratioOver);
+                    top = (mRect.top + transformCoverDistance(i * seatWidth + marginTopScreen - seatWidth / 2 - margiVertical));
                 }
                 float left;
                 //开始绘制矩阵图
                 if (x == 0) {
-                    left = mRect.left + (seatWidth + seatWidth / 2) / getMatrixScaleX() / ratioOver;
+                    left = mRect.left + transformCoverDistance(seatWidth + seatWidth / 2);
                 } else {
-                    left = (mRect.left + ((x + 1) * seatWidth + seatWidth / 2) / getMatrixScaleX() / ratioOver);
+                    left = (mRect.left + transformCoverDistance((x + 1) * seatWidth + seatWidth / 2));
                 }
                 int seatState = seatList[i][x];
-                Rect rect = new Rect((int) (left + margiHorizontal / getMatrixScaleX() / ratioOver),
-                        (int) (top + margiVertical / getMatrixScaleX() / ratioOver),
-                        (int) (left + seatWidth / getMatrixScaleX() / ratioOver),
-                        (int) (top + seatWidth / getMatrixScaleX() / ratioOver));
+                Rect rect = new Rect((int) (left + transformCoverDistance(margiHorizontal)),
+                        (int) (top + transformCoverDistance(margiVertical)),
+                        (int) (left + transformCoverDistance(seatWidth)),
+                        (int) (top + transformCoverDistance(seatWidth)));
                 //需要计算从中间开始绘制座位
                 switch (seatState) {
                     case EMPTY_SEAT:
@@ -789,6 +811,26 @@ public class SelectSeatView extends View {
         }
     }
 
+    /**
+     * 转换为缩略图的数值
+     *
+     * @param source
+     * @return
+     */
+    private float transformCoverDistance(float source) {
+        return source / getMatrixScaleX() / ratioOver;
+    }
+
+    /**
+     * 由于比例为4所以距离要缩放两次
+     *
+     * @param source
+     * @return
+     */
+    private float transformCoverDistance2(float source) {
+
+        return source / getMatrixScaleX() / getMatrixScaleX() / ratioOver;
+    }
 
     float[] m = new float[9];
 
