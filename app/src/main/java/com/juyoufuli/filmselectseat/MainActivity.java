@@ -25,14 +25,14 @@ public class MainActivity extends AppCompatActivity {
         tvResult = findViewById(R.id.tv_result);
 
 //外层数组
-        seatList = new int[8][];
-        for (int i = 0; i < 8; i++) {
-            int[] indes = new int[15];
-            for (int x = 0; x < 15; x++) {
-                if (i == 0) {
-                    if (x < 2 || x > 6) {
+        seatList = new int[9][];
+        for (int i = 0; i < 9; i++) {
+            int[] indes = new int[13];
+            for (int x = 0; x < 13; x++) {
+                if (i == 4) {
+                    if (x < 3 || x > 9) {
                         indes[x] = 0;
-                    } else if (x == 5) {
+                    } else if (x == 6) {
                         indes[x] = 2;
                     } else {
                         indes[x] = 1;

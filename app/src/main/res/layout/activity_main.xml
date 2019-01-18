@@ -15,12 +15,17 @@
         android:text="填充数据"
         android:visibility="gone" />
 
+    <Button
+        android:id="@+id/btn_1"
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:text="填充数据"
+        android:visibility="gone" />
 
     <com.juyoufuli.filmselectseat.SelectSeatView
         android:id="@+id/search_seat"
         android:layout_width="match_parent"
-        android:layout_height="360dp"
-        android:layout_marginTop="20dp"
+        android:layout_height="300dp"
         android:background="@android:color/darker_gray" />
 
     <LinearLayout

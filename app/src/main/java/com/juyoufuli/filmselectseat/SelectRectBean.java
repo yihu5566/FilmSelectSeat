@@ -22,6 +22,31 @@ public class SelectRectBean {
      */
     private int seatState;
 
+    /**
+     * 真实排
+     */
+    private int realRow;
+    /**
+     * 真实列
+     */
+    private int realColumn;
+
+    public int getRealRow() {
+        return realRow;
+    }
+
+    public void setRealRow(int realRow) {
+        this.realRow = realRow;
+    }
+
+    public int getRealColumn() {
+        return realColumn;
+    }
+
+    public void setRealColumn(int realColumn) {
+        this.realColumn = realColumn;
+    }
+
     public int getSeatState() {
         return seatState;
     }

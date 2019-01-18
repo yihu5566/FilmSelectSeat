@@ -1,6 +1,8 @@
 package com.juyoufuli.filmselectseat;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Matrix;
@@ -9,6 +11,8 @@ import android.graphics.Path;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.graphics.RectF;
+import android.os.Handler;
+import android.os.Message;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.text.TextPaint;
@@ -54,10 +58,16 @@ public class SelectSeatView extends View {
      * 所有的矩形集合
      */
     private List<SelectRectBean> mRectList;
+
+    /**
+     * 所有的矩形集合
+     */
+    private List<Rect> mOverRectList;
     /**
      * 选中的矩形
      */
     private List<SelectRectBean> selectList;
+
     /**
      * 当前点击的点
      */
@@ -86,13 +96,13 @@ public class SelectSeatView extends View {
      */
     private Matrix mCanvasMatrix = new Matrix();
     /**
-     * 移动的距离
+     * 缩略图画布矩阵
      */
-//    private float translateX, translateY;
+    private Matrix mCoverCanvasMatrix = new Matrix();
     /**
      * 缩放的比例
      */
-    private float scale;
+    private float lastScale;
     /**
      * --- 限制缩放比例 ---
      */
@@ -137,7 +147,7 @@ public class SelectSeatView extends View {
     /**
      * 座位距离屏幕的距离
      */
-    private static int marginTopScreen = 150;
+    private static int marginTopScreen = 250;
     /**
      * 是否在缩放中
      */
@@ -150,6 +160,42 @@ public class SelectSeatView extends View {
      * 座位的区域矩阵
      */
     private Rect seatRect;
+
+    /**
+     * 整个画布的区域矩阵
+     */
+    private Rect mCanvasRect;
+    /**
+     * 是否绘制左上角概览图
+     */
+    private boolean isDrawOver;
+    /**
+     * 概览图画笔
+     */
+    private Paint overPaint;
+    /**
+     * 缩略和原图的缩放比，默认是4，可以和屏幕进行比例换算
+     */
+    private float ratioOver = 4;
+    /**
+     * 是否需要绘制bitmap
+     */
+    private boolean isDrawOverBitmap = true;
+    private Bitmap mBitmap;
+
+    private Paint paintBorder;
+
+    @SuppressLint("HandlerLeak")
+    Handler mHandler = new Handler() {
+        @Override
+        public void handleMessage(Message msg) {
+            isDrawOverBitmap = false;
+            isDrawOver = false;
+//            LogUtil.i("handleMessage 绘制缩略图：" + isDrawOver);
+            invalidate();
+
+        }
+    };
 
     public void setChildSelectListener(ChildSelectListener childSelectListener) {
         this.childSelectListener = childSelectListener;
@@ -167,9 +213,12 @@ public class SelectSeatView extends View {
     }
 
     public void setSeatList(int[][] seatList) {
+        if (seatList.length == 0 || seatList[0].length == 0) {
+            return;
+        }
         this.seatList = seatList;
         row = seatList.length;
-
+        column = seatList[0].length;
         invalidate();
     }
 
@@ -193,9 +242,9 @@ public class SelectSeatView extends View {
     private void initData() {
         selectList = new ArrayList<>();
         mRectList = new ArrayList<>();
+        mOverRectList = new ArrayList<>();
         currentPoint = new Point();
         seatList = new int[row][];
-
     }
 
     private void init(Context context) {
@@ -208,6 +257,14 @@ public class SelectSeatView extends View {
         paintSeat = new Paint(Paint.ANTI_ALIAS_FLAG);
         paintSeat.setColor(Color.GREEN);
 
+        overPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        overPaint.setColor(Color.parseColor("#bb555555"));
+
+        paintBorder = new Paint(Paint.ANTI_ALIAS_FLAG);
+        paintBorder.setColor(Color.RED);
+        paintBorder.setStyle(Paint.Style.STROKE);
+        paintBorder.setStrokeWidth(2);
+
         textPaint = new TextPaint();
         textPaint.setTextSize(20);
         textPaint.setColor(Color.BLACK);
@@ -219,7 +276,7 @@ public class SelectSeatView extends View {
     }
 
     private void initGesture(Context context) {
-        scale = 1.0f;
+        lastScale = 1.0f;
         //图片完全显示的伸缩值
 //        mCanvasMatrix.postTranslate(translateX, translateY);
 //        mCanvasMatrix.postScale(scale, scale);
@@ -228,6 +285,7 @@ public class SelectSeatView extends View {
             @Override
             public boolean onScale(ScaleGestureDetector detector) {
                 isScaling = true;
+//                isDrawOverBitmap=true;
 //                LogUtil.i("focusX = " + detector.getFocusX());       // 缩放中心，x坐标
 //                LogUtil.i("focusY = " + detector.getFocusY());       // 缩放中心y坐标
 //                LogUtil.i("scale = " + detector.getScaleFactor());   // 缩放因子
@@ -246,9 +304,8 @@ public class SelectSeatView extends View {
             public void onScaleEnd(ScaleGestureDetector detector) {
                 super.onScaleEnd(detector);
                 isScaling = false;
-                scale = getMatrixScaleX();
+                lastScale = getMatrixScaleX();
                 reviseTranslate();
-
             }
         });
         //移动手势
@@ -277,7 +334,7 @@ public class SelectSeatView extends View {
                     float standardX = transformNewCoordY(seatRect.top);
                     float xRight = seatRect.bottom * getMatrixScaleY() + getMatrixTranslateY();
                     float standardRightX = measuredHeight - seatWidth;
-                    LogUtil.i("onScroll_change = " + "获取移动的距离" + xRight + "---" + standardRightX);
+//                    LogUtil.i("onScroll_change = " + "获取移动的距离" + xRight + "---" + standardRightX);
                     if (standardX >= x) {
                         mCanvasMatrix.preTranslate(0, -5);
                         return true;
@@ -294,20 +351,22 @@ public class SelectSeatView extends View {
                 return true;
             }
 
+
             @Override
             public boolean onSingleTapConfirmed(MotionEvent event) {
 //                LogUtil.i(event.getX() + "--onSingleTapConfirmed--" + event.getY());
                 //这里做点击了处理，开始的x、y坐标
+                isDrawOverBitmap = true;
                 float currentX = event.getX();
                 float currentY = event.getY();
                 //需要做坐标点转换,转换为原始的点，在进行点击事件
-                LogUtil.i(currentX + "--before--" + currentY);
+//                LogUtil.i(currentX + "--before--" + currentY);
                 currentPoint.set((int) currentX, (int) currentY);
                 clickSeat(currentPoint);
                 if (childSelectListener != null) {
                     childSelectListener.onChildSelect(selectList);
                 }
-                return super.onSingleTapConfirmed(event);
+                return true;
             }
         });
     }
@@ -341,9 +400,10 @@ public class SelectSeatView extends View {
                 result = Math.min(result, specSize);
             }
         }
-
         return result;
     }
+
+    private boolean isFirstDraw = true;
 
     @Override
     protected void onDraw(Canvas canvas) {
@@ -355,6 +415,231 @@ public class SelectSeatView extends View {
         drawRowIndex(canvas);
         //绘制电影屏幕
         drawFilmScreen(canvas);
+        //是否绘制概览区域
+        if (isDrawOver) {
+            drawOverView(canvas);
+            //绘制边框
+            drawOverBorder(canvas);
+        }
+        if (isFirstDraw) {
+            isFirstDraw = false;
+            mCanvasRect = new Rect();
+            mCanvasRect.left = 0;
+            mCanvasRect.top = 0;
+            mCanvasRect.right = (seatWidth + margiHorizontal) * seatList[0].length + (seatWidth + seatWidth / 2 + margiHorizontal);
+            mCanvasRect.bottom = (seatWidth + margiVertical) * seatList.length + marginTopScreen;
+        }
+    }
+
+    private void drawOverBorder(Canvas canvas) {
+        //绘制移动的框，应该显示屏幕区域内的座位,屏幕点转换到画布上，在转换到缩略图上
+        float left = transformOldCoordX(0) - getMatrixTranslateX() / getMatrixScaleX() / getMatrixScaleX() / ratioOver;
+        float top = transformOldCoordY(0) - getMatrixTranslateY() / getMatrixScaleY() / getMatrixScaleX() / ratioOver;
+        float right = left + measuredWidth / getMatrixScaleX() / getMatrixScaleX() / ratioOver;
+
+        float bottom = top + measuredHeight / getMatrixScaleY() / getMatrixScaleY() / ratioOver;
+//        float right = transformOldCoordX(measuredWidth) / getMatrixScaleX() / ratioOver - getMatrixTranslateX() / getMatrixScaleX() / ratioOver;
+//        float bottom = transformOldCoordY(measuredHeight) / getMatrixScaleY() / ratioOver - getMatrixTranslateY() / getMatrixScaleY() / ratioOver;
+        LogUtil.i(left + "-右-" + right + "-下-");
+
+        RectF rectBorder = new RectF(
+                left,
+                top,
+                right,
+                bottom);
+        canvas.drawRect(rectBorder, paintBorder);
+    }
+
+    private void drawOverView(Canvas canvas) {
+        float left = transformOldCoordX(0);
+        float top = transformOldCoordY(0);
+        float right = left + (mCanvasRect.right - mCanvasRect.left) / getMatrixScaleX() / ratioOver;
+        float bottom = top + (mCanvasRect.bottom - mCanvasRect.top) / getMatrixScaleY() / ratioOver;
+        RectF rect = new RectF(left, top, right, bottom);
+//        mCoverCanvasMatrix.reset();
+//        mCoverCanvasMatrix.postScale(1 / getMatrixScaleX(), 1 / getMatrixScaleY());
+//        mCoverCanvasMatrix.postTranslate(-getMatrixTranslateX()/ getMatrixScaleX() / ratioOver, -getMatrixTranslateY()/ getMatrixScaleX() / ratioOver);
+        //是否绘制图，一般只有点击时间才会重绘
+        if (isDrawOverBitmap) {
+        }
+        mBitmap = drawSeatRectOver(rect, canvas);
+//        if (mBitmap != null) {
+//            canvas.drawBitmap(mBitmap, mCoverCanvasMatrix, overPaint);
+//        }
+
+    }
+
+    private Bitmap drawSeatRectOver(RectF mRect, Canvas canvas) {
+        isDrawOverBitmap = false;
+        float overRectWidth = (mRect.right - mRect.left);
+        float overRectHeight = (mRect.bottom - mRect.top);
+        //生成bitmap
+//        if (mBitmap == null) {
+//            mBitmap = Bitmap.createBitmap((int) overRectWidth, (int) overRectHeight, Bitmap.Config.RGB_565);
+//        }
+//        Canvas canvas = new Canvas(mBitmap);
+        canvas.drawRect(mRect, overPaint);
+//        LogUtil.i(overRectWidth + "--宽高--" + overRectHeight);
+        //每行的高度缩放会变化
+//        float averageRow = overRectHeight / row;
+        for (int i = 0; i < seatList.length; i++) {
+            //每排多少座位
+//            float averageColumn = overRectWidth / seatList[i].length;
+            for (int x = 0; x < seatList[i].length; x++) {
+                float top;
+                if (i == 0) {
+                    top = mRect.top + marginTopScreen / getMatrixScaleX() / ratioOver;
+                } else {
+                    top = (mRect.top + (i * seatWidth + marginTopScreen) / getMatrixScaleX() / ratioOver);
+                }
+                float left;
+                //开始绘制矩阵图
+                if (x == 0) {
+                    left = mRect.left + (seatWidth + seatWidth / 2) / getMatrixScaleX() / ratioOver;
+                } else {
+                    left = (mRect.left + ((x + 1) * seatWidth + seatWidth / 2) / getMatrixScaleX() / ratioOver);
+                }
+                int seatState = seatList[i][x];
+                Rect rect = new Rect((int) (left + margiHorizontal / getMatrixScaleX() / ratioOver),
+                        (int) (top + margiVertical / getMatrixScaleX() / ratioOver),
+                        (int) (left + seatWidth / getMatrixScaleX() / ratioOver),
+                        (int) (top + seatWidth / getMatrixScaleX() / ratioOver));
+                //需要计算从中间开始绘制座位
+                switch (seatState) {
+                    case EMPTY_SEAT:
+                        paintSeat.setColor(Color.TRANSPARENT);
+                        canvas.drawRect(rect, paintSeat);
+                        break;
+                    case NORMAL_SEAT:
+                        paintSeat.setColor(Color.WHITE);
+                        canvas.drawRect(rect, paintSeat);
+                        break;
+                    case SELL_SEAT:
+                        paintSeat.setColor(Color.RED);
+                        canvas.drawRect(rect, paintSeat);
+                        break;
+                    case SELECT_SEAT:
+                        //刷新选中
+                        paintSeat.setColor(Color.GREEN);
+                        canvas.drawRect(rect, paintSeat);
+                        break;
+                    default:
+                        paintSeat.setColor(Color.TRANSPARENT);
+                        canvas.drawRect(rect, paintSeat);
+                        break;
+                }
+                boolean isSelect = seatType(i, x);
+                if (isSelect) {
+                    paintSeat.setColor(Color.GREEN);
+                    canvas.drawRect(rect, paintSeat);
+                }
+                //记录矩形的位置信息
+                mOverRectList.add(rect);
+            }
+        }
+
+        return mBitmap;
+    }
+
+    private boolean seatType(int row, int column) {
+        //绘制变化的
+        if (selectList.size() > 0) {
+            for (int i = 0; i < selectList.size(); i++) {
+                SelectRectBean selectRectBean = selectList.get(i);
+                int rowS = selectRectBean.getRealRow();
+                int columnS = selectRectBean.getRealColumn();
+                if (row == rowS - 1 && column == columnS - 1) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+
+    private void drawSeatView(Canvas canvas) {
+        seatRect = new Rect();
+        seatRect.left = seatWidth + seatWidth / 2;
+        seatRect.top = marginTopScreen;
+        //绘制多少排座位
+        for (int i = 0; i < seatList.length; i++) {
+            int top;
+            if (i == 0) {
+                top = marginTopScreen - seatWidth / 2 - margiVertical;
+            } else {
+                top = i * seatWidth + marginTopScreen - seatWidth / 2 - margiVertical;
+            }
+            int emptyCount = 0;
+            //每排多少座位
+            for (int x = 0; x < seatList[i].length; x++) {
+                int left;
+                //开始绘制矩阵图
+                if (x == 0) {
+                    left = seatWidth + seatWidth / 2;
+                } else {
+                    left = (x + 1) * seatWidth + seatWidth / 2;
+                }
+                seatRect.right = left + seatWidth + margiHorizontal;
+                seatRect.bottom = top + seatWidth + margiVertical;
+//                LogUtil.i(left + "--" + top + "--" + (left + seatWidth) + "--" + (top + seatWidth));
+                int seatState = seatList[i][x];
+                SelectRectBean selectRectBean = new SelectRectBean();
+                Rect rect = new Rect(left + margiHorizontal, top + margiVertical, left + seatWidth, top + seatWidth);
+                selectRectBean.setRect(rect);
+                selectRectBean.setSeatState(seatState);
+                //需要计算从中间开始绘制座位
+                switch (seatState) {
+                    case EMPTY_SEAT:
+                        emptyCount++;
+                        paintSeat.setColor(Color.TRANSPARENT);
+                        canvas.drawRect(rect, paintSeat);
+                        break;
+                    case NORMAL_SEAT:
+                        paintSeat.setColor(Color.WHITE);
+                        selectRectBean.setColumn(x + 1 - emptyCount);
+                        selectRectBean.setRow(i + 1);
+                        selectRectBean.setRealColumn(x + 1);
+                        selectRectBean.setRealRow(i + 1);
+                        canvas.drawRect(rect, paintSeat);
+                        break;
+                    case SELL_SEAT:
+                        paintSeat.setColor(Color.RED);
+                        canvas.drawRect(rect, paintSeat);
+                        break;
+                    case SELECT_SEAT:
+                        paintSeat.setColor(Color.GREEN);
+                        selectRectBean.setColumn(x + 1 - emptyCount);
+                        selectRectBean.setRow(i + 1);
+                        selectRectBean.setRealColumn(x + 1);
+                        selectRectBean.setRealRow(i + 1);
+                        canvas.drawRect(rect, paintSeat);
+                        break;
+                    default:
+                        paintSeat.setColor(Color.TRANSPARENT);
+                        canvas.drawRect(rect, paintSeat);
+                        break;
+                }
+                boolean isSelect = seatType(i, x);
+                if (isSelect) {
+                    paintSeat.setColor(Color.GREEN);
+                    canvas.drawRect(rect, paintSeat);
+                    canvas.drawText(selectRectBean.getRow() + "排" + selectRectBean.getColumn() + "列", rect.left, rect.top + seatWidth / 2, textPaint);
+                }
+                //收集所有的位置信息
+                mRectList.add(selectRectBean);
+
+            }
+        }
+        //绘制变化的
+//        if (selectList.size() > 0) {
+//            for (int i = 0; i < selectList.size(); i++) {
+//                SelectRectBean selectRectBean = selectList.get(i);
+//                Rect rect = selectRectBean.getRect();
+//                paintSeat.setColor(Color.GREEN);
+//                canvas.drawRect(rect, paintSeat);
+//                canvas.drawText(selectRectBean.getRow() + "排" + selectRectBean.getColumn() + "列", rect.left, rect.top + seatWidth / 2, textPaint);
+//            }
+//        }
 
     }
 
@@ -377,12 +662,7 @@ public class SelectSeatView extends View {
     private void drawFilmScreen(Canvas canvas) {
         //计算出实时的顶部位置，座位的矩阵部分其实是原始的坐标。
         screenPaint.setColor(Color.parseColor("#ffffff"));
-        float centerX;
-        if (scale == 1.0) {
-            centerX = ((seatRect.right + seatRect.left) / 2);
-        } else {
-            centerX = ((seatRect.right + seatRect.left) / 2);
-        }
+        float centerX = ((seatRect.right + seatRect.left) / 2);
         float newLeft = (centerX - 100);
         float newRight = (centerX - filmScreenHeight);
         float newTop = (centerX + filmScreenHeight);
@@ -401,90 +681,41 @@ public class SelectSeatView extends View {
 
     }
 
-    private void drawSeatView(Canvas canvas) {
-        seatRect = new Rect();
-        seatRect.left = seatWidth + seatWidth / 2 + margiHorizontal;
-        seatRect.top = marginTopScreen;
-        //绘制多少排座位
-        for (int i = 0; i < seatList.length; i++) {
-            int startY;
-            if (i == 0) {
-                startY = marginTopScreen;
-            } else {
-                startY = i * seatWidth + marginTopScreen;
-            }
-            int emptyCount = 0;
-            //每排多少座位
-            for (int x = 0; x < seatList[i].length; x++) {
-                int left;
-                //开始绘制矩阵图
-                if (x == 0) {
-                    left = seatWidth + seatWidth / 2;
-                } else {
-                    left = (x + 1) * seatWidth + seatWidth / 2;
-                }
-                int top = startY - seatWidth / 2 - margiVertical;
-                seatRect.right = left + seatWidth;
-                seatRect.bottom = top + seatWidth;
-//                LogUtil.i(left + "--" + top + "--" + (left + seatWidth) + "--" + (top + seatWidth));
-                int seatState = seatList[i][x];
-                SelectRectBean selectRectBean = new SelectRectBean();
-                Rect rect = new Rect(left + margiHorizontal, top + margiVertical, left + seatWidth, top + seatWidth);
-                selectRectBean.setRect(rect);
-                selectRectBean.setSeatState(seatState);
-                //需要计算从中间开始绘制座位
-                switch (seatState) {
-                    case EMPTY_SEAT:
-                        emptyCount++;
-                        paintSeat.setColor(Color.TRANSPARENT);
-                        canvas.drawRect(rect, paintSeat);
-                        break;
-                    case NORMAL_SEAT:
-                        paintSeat.setColor(Color.WHITE);
-                        selectRectBean.setColumn(x + 1 - emptyCount);
-                        selectRectBean.setRow(i + 1);
-                        canvas.drawRect(rect, paintSeat);
-                        break;
-                    case SELL_SEAT:
-                        paintSeat.setColor(Color.RED);
-                        canvas.drawRect(rect, paintSeat);
-                        break;
-                    case SELECT_SEAT:
-                        paintSeat.setColor(Color.GREEN);
-                        selectRectBean.setColumn(x + 1 - emptyCount);
-                        selectRectBean.setRow(i + 1);
-                        canvas.drawRect(rect, paintSeat);
-                        break;
-                    default:
-                        paintSeat.setColor(Color.TRANSPARENT);
-                        canvas.drawRect(rect, paintSeat);
-                        break;
-                }
-
-                //收集所有的位置信息
-                mRectList.add(selectRectBean);
-
-            }
-        }
-        //绘制变化的
-        if (selectList.size() > 0) {
-            for (int i = 0; i < selectList.size(); i++) {
-                SelectRectBean selectRectBean = selectList.get(i);
-                Rect rect = selectRectBean.getRect();
-                paintSeat.setColor(Color.GREEN);
-                canvas.drawRect(rect, paintSeat);
-                canvas.drawText(selectRectBean.getRow() + "排" + selectRectBean.getColumn() + "列", rect.left, rect.top + seatWidth / 2, textPaint);
-            }
-        }
-
-    }
-
-
     @Override
     public boolean onTouchEvent(MotionEvent event) {
+//        LogUtil.i("--onTouchEvent--" + event.getAction());
         //事件分发给手势处理器进行缩放和平移
         gestureDetector.onTouchEvent(event);
         scaleGestureDetector.onTouchEvent(event);
+//        float downX = 0;
+//        float downY = 0;
+//        downX = event.getX();
+//        downY = event.getY();
+        switch (event.getAction()) {
+            case MotionEvent.ACTION_DOWN:
+                isDrawOver = true;
+                break;
+            case MotionEvent.ACTION_UP:
+//                float currentX = event.getX();
+//                float currentY = event.getY();
+//                if (Math.abs(downX - currentX) < 5 && Math.abs(downY - currentY) < 5){
+//                    //需要做坐标点转换,转换为原始的点，在进行点击事件
+//                    isDrawOverBitmap = true;
+//                    LogUtil.i(currentX + "--before--" + currentY);
+//                    currentPoint.set((int) currentX, (int) currentY);
+//                    clickSeat(currentPoint);
+//                    if (childSelectListener != null) {
+//                        childSelectListener.onChildSelect(selectList);
+//                    }
+//                }
+//                LogUtil.i("是否 绘制缩略图：" + isDrawOver);
+                mHandler.removeMessages(1);
+                mHandler.sendEmptyMessageDelayed(1, 2000);
+                break;
+            default:
+
+                break;
+        }
         return true;
     }
 
@@ -493,7 +724,9 @@ public class SelectSeatView extends View {
         for (int i = 0; i < mRectList.size(); i++) {
             Rect rect = mRectList.get(i).getRect();
             SelectRectBean selectRectBean = mRectList.get(i);
-            if (selectRectBean.getSeatState() == SELL_SEAT) {
+            if (selectRectBean.getSeatState() == SELL_SEAT ||
+                    selectRectBean.getSeatState() == EMPTY_SEAT ||
+                    selectRectBean.getSeatState() == EMPTY_SEAT) {
                 continue;
             }
             float newLeft = rect.left * getMatrixScaleX() + 1 * getMatrixTranslateX();
@@ -523,9 +756,7 @@ public class SelectSeatView extends View {
         LogUtil.i("onSizeChanged");
         measuredWidth = getMeasuredWidth();
         measuredHeight = getMeasuredHeight();
-        //view的中心点
-//        translateX = measuredWidth / 2;
-//        translateY = measuredHeight / 2;
+
     }
 
     /**
@@ -597,15 +828,6 @@ public class SelectSeatView extends View {
             realScale = currentScaleFactor;
         }
         return realScale;
-    }
-
-    //--- 将坐标转换为画布坐标 ---
-    private float[] mapPoint(float x, float y, Matrix matrix) {
-        float[] temp = new float[2];
-        temp[0] = x;
-        temp[1] = y;
-        matrix.mapPoints(temp);
-        return temp;
     }
 
     /**
