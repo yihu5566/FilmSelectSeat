@@ -1,5 +1,7 @@
 package com.juyoufuli.filmselectseat;
 
+import android.animation.TypeEvaluator;
+import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Bitmap;
@@ -24,6 +26,7 @@ import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
 import android.view.WindowManager;
+import android.view.animation.DecelerateInterpolator;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -147,7 +150,7 @@ public class SelectSeatView extends View {
     /**
      * 座位距离屏幕的距离
      */
-    private static int marginTopScreen = 250;
+    private static int marginTopScreen = 200;
     /**
      * 是否在缩放中
      */
@@ -189,10 +192,20 @@ public class SelectSeatView extends View {
     Handler mHandler = new Handler() {
         @Override
         public void handleMessage(Message msg) {
-            isDrawOverBitmap = false;
-            isDrawOver = false;
+            switch (msg.what) {
+                case 1:
+                    isDrawOverBitmap = false;
+                    isDrawOver = false;
 //            LogUtil.i("handleMessage 绘制缩略图：" + isDrawOver);
-            invalidate();
+                    invalidate();
+                    break;
+                case 2:
+
+                    break;
+                default:
+                    break;
+            }
+
 
         }
     };
@@ -312,36 +325,50 @@ public class SelectSeatView extends View {
         gestureDetector = new GestureDetector(context, new GestureDetector.SimpleOnGestureListener() {
             @Override
             public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
-                //方向是相反的，所以需要加负号。
-//                LogUtil.i("onScroll_change = " + "获取移动的距离" + getMatrixTranslateX() + "---" + getMatrixTranslateY());
-                //通过移动距离的大小来判断x移动或y轴移动
+//                方向是相反的，所以需要加负号。
+                LogUtil.i("onScroll_change = " + "获取移动的距离" + getMatrixTranslateX() + "---" + getMatrixTranslateY());
+//                通过移动距离的大小来判断x移动或y轴移动
+
                 if (Math.abs(distanceX) > Math.abs(distanceY)) {
-                    float x = seatRect.left / getMatrixScaleX() - getMatrixTranslateX() + seatWidth;
+                    //左边界
+                    float x = seatRect.left / getMatrixScaleX() - getMatrixTranslateX();
                     float standardX = transformNewCoordX(seatRect.left);
+                    //右边界
                     float xRight = seatRect.right * getMatrixScaleX() + getMatrixTranslateX();
                     float standardRightX = measuredWidth - seatWidth;
-//                LogUtil.i("onScroll_change = " + "获取移动的距离" + xRight + "---" + standardRightX);
-                    if (standardX >= x) {
-                        mCanvasMatrix.preTranslate(-5, 0);
-                        return true;
+                    LogUtil.i("onScroll_change = " + "右边界" + xRight + "---" + standardRightX
+                            + "\n 左边界：：" + x + "----" + standardX);
+                    //如果加上新的移动的距离>边界值就设置为边界数值//distanceX==左正数，右是负数
+//                    if (x < standardX) {
+//                        mCanvasMatrix.postTranslate(standardX, 0);
+//                    } else if (xRight < standardRightX) {
+////                        mCanvasMatrix.postTranslate(xRight, 0);
+//                    } else {
+//                        mCanvasMatrix.postTranslate(-distanceX, 0);
+//                    }
+
+                    if (x <= standardX) {
                     } else if (xRight < standardRightX) {
-                        mCanvasMatrix.preTranslate(5, 0);
-                        return true;
+                    } else {
                     }
                     mCanvasMatrix.postTranslate(-distanceX, 0);
+
                 } else if (Math.abs(distanceX) < Math.abs(distanceY)) {
+                    //上边界
                     float x = seatRect.top / getMatrixScaleY() - getMatrixTranslateY();
                     float standardX = transformNewCoordY(seatRect.top);
+                    //下边界
                     float xRight = seatRect.bottom * getMatrixScaleY() + getMatrixTranslateY();
                     float standardRightX = measuredHeight - seatWidth;
-//                    LogUtil.i("onScroll_change = " + "获取移动的距离" + xRight + "---" + standardRightX);
-                    if (standardX >= x) {
-                        mCanvasMatrix.preTranslate(0, -5);
-                        return true;
-                    } else if (xRight < standardRightX) {
-                        mCanvasMatrix.preTranslate(0, 5);
-                        return true;
-                    }
+//                    LogUtil.i("onScroll_change = " + "下边界：" + xRight + "---" + standardRightX
+//                            + "\n 下边界：：" + x + "----" + standardX);
+//                    if (standardX >= x) {
+//                        mCanvasMatrix.postTranslate(0, -2);
+//                    } else if (xRight < standardRightX) {
+//                        mCanvasMatrix.postTranslate(0, 2);
+//                    } else {
+//
+//                    }
                     mCanvasMatrix.postTranslate(0, -distanceY);
                 } else {
 
@@ -371,6 +398,108 @@ public class SelectSeatView extends View {
         });
     }
 
+
+    private void autoScroll() {
+        float currentSeatBitmapWidth = (Math.abs(seatRect.right - seatRect.left)) * getMatrixScaleX();
+        float currentSeatBitmapHeight = (Math.abs(seatRect.bottom - seatRect.top)) * getMatrixScaleY();
+        float moveYLength = 0;
+        float moveXLength = 0;
+
+        //处理左右滑动的情况
+        if (currentSeatBitmapWidth + margiLeft < getWidth()) {
+            if (getMatrixTranslateX() < 0 || getMatrixScaleX() < margiLeft + margiHorizontal) {
+                //计算要移动的距离
+                if (getMatrixTranslateX() < 0) {
+                    moveXLength = (-getMatrixTranslateX()) + margiLeft + margiHorizontal;
+                } else {
+                    moveXLength = margiLeft + margiHorizontal - getMatrixTranslateX();
+                }
+            }
+        } else {
+
+            if (getMatrixTranslateX() < 0 && getMatrixTranslateX() + currentSeatBitmapWidth > getWidth()) {
+            } else {
+                //往左侧滑动
+                if (getMatrixTranslateX() + currentSeatBitmapWidth < getWidth()) {
+                    //滑动的距离需要计算
+                    moveXLength = getWidth() - (getMatrixTranslateX() + currentSeatBitmapWidth + (seatWidth * 2) * getMatrixScaleX());
+                } else {
+                    //右侧滑动
+                    moveXLength = -getMatrixTranslateX() - margiHorizontal * 2;
+                }
+            }
+        }
+
+        float startYPosition = filmScreenHeight * getMatrixScaleY() / 4;
+        //处理上下滑动
+        if (currentSeatBitmapHeight + filmScreenHeight + marginTopScreen < getHeight()) {
+            if (getMatrixTranslateY() < startYPosition) {
+                moveYLength = startYPosition - getMatrixTranslateY();
+            } else {
+                moveYLength = -(getMatrixTranslateY() - (startYPosition));
+            }
+
+        } else {
+            if (getMatrixTranslateY() < 0 && getMatrixTranslateY() + currentSeatBitmapHeight > getHeight()) {
+            } else {
+                //往上滑动
+                if (getMatrixTranslateY() + currentSeatBitmapHeight < getHeight()) {
+                    //向下调整
+                    moveYLength = getHeight() - (getMatrixTranslateY() + currentSeatBitmapHeight) - marginTopScreen * getMatrixScaleY();
+                } else {
+                    //向上调整
+                    moveYLength = -(getMatrixTranslateY() - (startYPosition) );
+                }
+            }
+        }
+
+        Point start = new Point();
+        start.x = (int) getMatrixTranslateX();
+        start.y = (int) getMatrixTranslateY();
+
+        Point end = new Point();
+        end.x = (int) (start.x + moveXLength);
+        end.y = (int) (start.y + moveYLength);
+
+        moveAnimate(start, end);
+
+    }
+
+    private void moveAnimate(Point start, Point end) {
+        ValueAnimator valueAnimator = ValueAnimator.ofObject(new MoveEvaluator(), start, end);
+        valueAnimator.setInterpolator(new DecelerateInterpolator());
+        MoveAnimation moveAnimation = new MoveAnimation();
+        valueAnimator.addUpdateListener(moveAnimation);
+        valueAnimator.setDuration(400);
+        valueAnimator.start();
+    }
+
+    class MoveAnimation implements ValueAnimator.AnimatorUpdateListener {
+
+        @Override
+        public void onAnimationUpdate(ValueAnimator animation) {
+            Point p = (Point) animation.getAnimatedValue();
+            move(p);
+        }
+    }
+
+    class MoveEvaluator implements TypeEvaluator {
+        @Override
+        public Object evaluate(float fraction, Object startValue, Object endValue) {
+            Point startPoint = (Point) startValue;
+            Point endPoint = (Point) endValue;
+            int x = (int) (startPoint.x + fraction * (endPoint.x - startPoint.x));
+            int y = (int) (startPoint.y + fraction * (endPoint.y - startPoint.y));
+            return new Point(x, y);
+        }
+    }
+
+    private void move(Point p) {
+        float x = p.x - getMatrixTranslateX();
+        float y = p.y - getMatrixTranslateY();
+        mCanvasMatrix.postTranslate(x, y);
+        invalidate();
+    }
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
@@ -409,12 +538,14 @@ public class SelectSeatView extends View {
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
         canvas.concat(mCanvasMatrix);
-        //绘制座位
-        drawSeatView(canvas);
-        //绘制行数
-        drawRowIndex(canvas);
         //绘制电影屏幕
         drawFilmScreen(canvas);
+        //绘制座位
+        drawSeatView(canvas);
+        //绘制电影屏幕
+        drawFilmScreen2(canvas);
+        //绘制行数
+        drawRowIndex(canvas);
         //是否绘制概览区域
         if (isDrawOver) {
             //绘制概览区域
@@ -431,6 +562,7 @@ public class SelectSeatView extends View {
             mCanvasRect.bottom = (seatWidth + margiVertical) * seatList.length + marginTopScreen - seatWidth / 2 - margiVertical;
         }
     }
+
 
     private void drawOverBorder(Canvas canvas) {
         //绘制移动的框，应该显示屏幕区域内的座位,屏幕点转换到画布上，在转换到缩略图上
@@ -475,7 +607,7 @@ public class SelectSeatView extends View {
         //计算出实时的顶部位置，座位的矩阵部分其实是原始的坐标。
         screenPaint.setColor(Color.parseColor("#ffffff"));
         float centerX = ((rect.right + rect.left) / 2 - 1.5f);
-        LogUtil.i("中心的x坐标：：：" + centerX);
+//        LogUtil.i("中心的x坐标：：：" + centerX);
         float newLeft = (centerX - transformCoverDistance(100));
         float newRight = (centerX - transformCoverDistance(filmScreenHeight));
         float newTop = (centerX + transformCoverDistance(filmScreenHeight));
@@ -581,9 +713,6 @@ public class SelectSeatView extends View {
 
 
     private void drawSeatView(Canvas canvas) {
-        seatRect = new Rect();
-        seatRect.left = seatWidth + seatWidth / 2;
-        seatRect.top = marginTopScreen;
         //绘制多少排座位
         for (int i = 0; i < seatList.length; i++) {
             int top;
@@ -602,8 +731,6 @@ public class SelectSeatView extends View {
                 } else {
                     left = (x + 1) * seatWidth + seatWidth / 2;
                 }
-                seatRect.right = left + seatWidth + margiHorizontal;
-                seatRect.bottom = top + seatWidth + margiVertical;
 //                LogUtil.i(left + "--" + top + "--" + (left + seatWidth) + "--" + (top + seatWidth));
                 int seatState = seatList[i][x];
                 SelectRectBean selectRectBean = new SelectRectBean();
@@ -683,6 +810,41 @@ public class SelectSeatView extends View {
     }
 
     private void drawFilmScreen(Canvas canvas) {
+        seatRect = new Rect();
+        seatRect.left = seatWidth + seatWidth / 2;
+        seatRect.top = marginTopScreen;
+        //绘制多少排座位
+        for (int i = 0; i < seatList.length; i++) {
+            int top;
+            if (i == 0) {
+                top = marginTopScreen - seatWidth / 2 - margiVertical;
+            } else {
+                top = i * seatWidth + marginTopScreen - seatWidth / 2 - margiVertical;
+            }
+            //每排多少座位
+            for (int x = 0; x < seatList[i].length; x++) {
+                int left;
+                //开始绘制矩阵图
+                if (x == 0) {
+                    left = seatWidth + seatWidth / 2;
+                } else {
+                    left = (x + 1) * seatWidth + seatWidth / 2;
+                }
+                seatRect.right = left + seatWidth + margiHorizontal;
+                seatRect.bottom = top + seatWidth + margiVertical;
+//
+
+            }
+        }
+        float centerX = ((seatRect.right + seatRect.left) / 2);
+
+//        LogUtil.i("drawFilmScreen = " + centerX + "---" + getMatrixTranslateY() + "***" + getMatrixTranslateX());
+        canvas.drawLine(centerX, transformOldCoordY(0), centerX, marginTopScreen + seatWidth * row - seatWidth / 2 - margiVertical, screenPaint);
+
+
+    }
+
+    private void drawFilmScreen2(Canvas canvas) {
         //计算出实时的顶部位置，座位的矩阵部分其实是原始的坐标。
         screenPaint.setColor(Color.parseColor("#ffffff"));
         float centerX = ((seatRect.right + seatRect.left) / 2);
@@ -698,26 +860,33 @@ public class SelectSeatView extends View {
         path1.close();
         canvas.drawPath(path1, screenPaint);
         canvas.drawText("屏幕", (centerX - filmScreenHeight / 4), transformOldCoordY(filmScreenHeight / 4), textPaint);
-//        LogUtil.i("drawFilmScreen = " + centerX + "---" + getMatrixTranslateY() + "***" + getMatrixTranslateX());
-        canvas.drawLine(centerX, transformOldCoordY(0), centerX, marginTopScreen + seatWidth * row - seatWidth / 2 - margiVertical, screenPaint);
-
-
     }
+
+    private int downX, downY;
+    private boolean pointer;
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
 //        LogUtil.i("--onTouchEvent--" + event.getAction());
+        int y = (int) event.getY();
+        int x = (int) event.getX();
+        super.onTouchEvent(event);
         //事件分发给手势处理器进行缩放和平移
         gestureDetector.onTouchEvent(event);
         scaleGestureDetector.onTouchEvent(event);
-//        float downX = 0;
-//        float downY = 0;
-//        downX = event.getX();
-//        downY = event.getY();
+
+        int pointerCount = event.getPointerCount();
+        if (pointerCount > 1) {
+            pointer = true;
+        }
         switch (event.getAction()) {
             case MotionEvent.ACTION_DOWN:
                 mHandler.removeMessages(1);
                 isDrawOver = true;
+                pointer = false;
+
+                downX = x;
+                downY = y;
                 break;
             case MotionEvent.ACTION_UP:
 //                float currentX = event.getX();
@@ -734,6 +903,12 @@ public class SelectSeatView extends View {
 //                }
 //                LogUtil.i("是否 绘制缩略图：" + isDrawOver);
                 mHandler.sendEmptyMessageDelayed(1, 2000);
+
+                int downDX = Math.abs(x - downX);
+                int downDY = Math.abs(y - downY);
+                if ((downDX > 10 || downDY > 10) && !pointer) {
+                    autoScroll();
+                }
                 break;
             default:
 

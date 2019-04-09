@@ -24,11 +24,11 @@ public class MainActivity extends AppCompatActivity {
         searchSeat = findViewById(R.id.search_seat);
         tvResult = findViewById(R.id.tv_result);
 
-//外层数组
-        seatList = new int[9][];
-        for (int i = 0; i < 9; i++) {
-            int[] indes = new int[13];
-            for (int x = 0; x < 13; x++) {
+//外层数组，这里是，默认座位状态。0等于空白位置；1等于未选择座位；2等于已经选择座位
+        seatList = new int[10][];
+        for (int i = 0; i < 10; i++) {
+            int[] indes = new int[14];
+            for (int x = 0; x < 14; x++) {
                 if (i == 4) {
                     if (x < 3 || x > 9) {
                         indes[x] = 0;
